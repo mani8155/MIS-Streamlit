@@ -1,0 +1,60 @@
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+
+# Virtual environment
+venv/
+ENV/
+env/
+*.env
+
+# Django stuff
+*.log
+*.pot
+*.py[cod]
+__pycache__/
+db.sqlite3
+db.sqlite3-journal
+
+# Media files
+/media/
+uploads/
+
+# Static files (skip if you build collectstatic in production)
+static/
+staticfiles/
+profile_images/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node / JS
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Coverage / Test
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+
+# Django migrations (optional if you want to skip in git)
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Secrets / Environment files
+.env
+.env.*
