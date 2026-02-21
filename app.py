@@ -2,276 +2,507 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import numpy as np
-from io import BytesIO
 import warnings
 
 warnings.filterwarnings("ignore")
 
-# Get query params
-query_params = st.query_params
-
-user_id = query_params.get("user_id")
-
-if user_id:
-    # st.success(f"User ID: {user_id}")
-    pass
-else:
-    st.warning("user_id not found in URL")
-    st.stop()
-
-# -------------------------------------------------
-# PAGE CONFIG
-# -------------------------------------------------
 st.set_page_config(
-    page_title="Chart Analyzer",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed",
+    page_title="Premium Analytics",
+    page_icon="💎",
+    layout="wide"
 )
 
-# -------------------------------------------------
-# MODERN UI CSS
-# -------------------------------------------------
+# -------------------------------
+# SNEAT STYLE CSS
+# -------------------------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-* { font-family: 'Inter', sans-serif; }
-
+.block-container { padding: 1.5rem 2rem !important; }
+header, footer { visibility: hidden !important; }
 html, body { background-color: #f8fafc; }
 
-.main .block-container {
-    padding-top: 0rem;
-    padding-bottom: 0.5rem;
-    max-width: 1400px;
+span[data-baseweb="tag"] {
+    background-color: #696cff !important;
+    color: white !important;
+    border-radius: 4px !important;
 }
 
-
-[data-testid="stSidebar"], footer, header, #MainMenu {
-    display: none !important;
-}
-
-.section-card {
+.sneat-card {
     background: #ffffff;
-    border-radius: 14px;
-    padding: 1.5rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-}
-
-.section-title {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #1e293b;
-    margin-bottom: 0.3rem;
-}
-
-.section-sub {
-    font-size: 0.95rem;
-    color: #64748b;
-    margin-bottom: 1rem;
-}
-
-.stPlotlyChart {
     border-radius: 12px;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #d9dee3;
+    box-shadow: 0 4px 12px 0 rgba(67, 89, 113, 0.1);
 }
 
-.generate-btn {
-    position: sticky;
-    bottom: 15px;
-    z-index: 99;
+.sneat-header {
+    color: #566a7f;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 15px;
 }
 
-hr {
-    border: none;
-    height: 1px;
-    background: linear-gradient(90deg,#e2e8f0,#c7d2fe,#e2e8f0);
-}
+
+
 </style>
 """, unsafe_allow_html=True)
 
-# -------------------------------------------------
-# HEADER
-# -------------------------------------------------
-st.markdown("""
-<div style="text-align:center;margin-bottom:2rem">
-<h1 style="font-size:2.7rem;font-weight:700;
-background:linear-gradient(135deg,#4f46e5,#7c3aed);
--webkit-background-clip:text;
--webkit-text-fill-color:transparent">
-🚀 Pro Chart Analyzer
-</h1>
-<p style="color:#64748b;font-size:1.05rem">
-Upload • Analyze • Visualize • Export
-</p>
-</div>
-""", unsafe_allow_html=True)
 
-st.markdown("<hr>", unsafe_allow_html=True)
+# # -------------------------------
+# # DATA LOADER (UNCHANGED LOGIC)
+# # -------------------------------
+# @st.cache_data
+# def load_data(file):
+#     if file.name.endswith(".csv"):
+#         df = pd.read_csv(file)
+#     else:
+#         df = pd.read_excel(file)
+#     return df.drop_duplicates()
+#
+#
+# # -------------------------------
+# # UPLOAD CARD
+# # -------------------------------
+# st.markdown('<div class="sneat-header">⚙️ Upload Dataset</div>', unsafe_allow_html=True)
+#
+# uploaded_file = st.file_uploader(
+#     "Upload Dataset",
+#     type=["csv", "xlsx"],
+#     label_visibility="collapsed"
+# )
+#
+# st.markdown('</div>', unsafe_allow_html=True)
+#
+# if not uploaded_file:
+#     st.info("Please upload a file to begin analysis.")
+#     st.stop()
+# df = load_data(uploaded_file)
 
-# -------------------------------------------------
-# STEP 1: FILE UPLOAD
-# -------------------------------------------------
-st.markdown("""
-<div class="section-card">
-<div class="section-title">📤 Step 1: Upload Dataset</div>
-<div class="section-sub">CSV / Excel supported • Auto cleaning enabled</div>
-""", unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader(
-    "Upload File",
-    type=["csv", "xlsx", "xls"],
-    label_visibility="collapsed"
-)
-
-st.markdown("</div>", unsafe_allow_html=True)
-
-if not uploaded_file:
-    st.info("⬆️ Upload a dataset to continue")
-    st.stop()
-
-# -------------------------------------------------
-# DATA PIPELINE (OPTIMIZED)
-# -------------------------------------------------
-@st.cache_data(show_spinner=False)
-def load_and_clean(file):
-    df = pd.read_csv(file) if file.name.endswith(".csv") else pd.read_excel(file)
-
-    numeric_cols = []
-    for col in df.columns:
-        temp = pd.to_numeric(df[col], errors="coerce")
-        if temp.notna().mean() > 0.5:
-            df[col] = temp.fillna(temp.median())
-            numeric_cols.append(col)
-
-    cat_cols = df.columns.difference(numeric_cols)
-    df[cat_cols] = df[cat_cols].fillna("Unknown").astype(str)
-
+# -------------------------------
+# DATA LOADER
+# -------------------------------
+@st.cache_data
+def load_data(file):
+    if file.name.endswith(".csv"):
+        df = pd.read_csv(file)
+    else:
+        df = pd.read_excel(file)
     return df.drop_duplicates()
 
-with st.spinner("🔄 Processing dataset..."):
-    df = load_and_clean(uploaded_file)
 
-st.success(f"✅ Dataset Ready: {df.shape[0]:,} rows × {df.shape[1]} columns")
+# -------------------------------
+# INPUT SELECTION
+# -------------------------------
 
-# -------------------------------------------------
-# STEP 2: COLUMN SELECTION
-# -------------------------------------------------
+input_method = st.radio(
+    "Select Input Method",
+    ["Upload File", "Paste Data"],
+    horizontal=True
+)
+
+df = None
+
+
+# -------------------------------
+# CASE 1: UPLOAD FILE
+# -------------------------------
+if input_method == "Upload File":
+
+    uploaded_file = st.file_uploader(
+        "Upload Excel or CSV",
+        type=["csv", "xlsx"]
+    )
+
+    if uploaded_file is not None:
+        df = load_data(uploaded_file)
+    else:
+        st.info("Please upload a file.")
+        st.stop()
+
+
+# -------------------------------
+# CASE 2: PASTE DATA
+# -------------------------------
+elif input_method == "Paste Data":
+
+    pasted_data = st.text_area(
+        "Paste Excel/CSV Data Here (Ctrl + C / Ctrl + V)",
+        height=200
+    )
+
+    if pasted_data.strip() != "":
+        try:
+            from io import StringIO
+
+            df = pd.read_csv(StringIO(pasted_data), sep="\t")
+
+            if df.shape[1] == 1:
+                df = pd.read_csv(StringIO(pasted_data))
+
+            df = df.drop_duplicates()
+            st.success(
+                f"✅ Dataset Loaded Successfully | "
+                f"Rows: {len(df):,} | "
+                f"Columns: {len(df.columns)} | "
+                f"Memory: {round(df.memory_usage(deep=True).sum() / 1024 ** 2, 2)} MB"
+            )
+
+        except Exception:
+            st.error("Invalid pasted data format.")
+            st.stop()
+    else:
+        st.info("Please paste data.")
+        st.stop()
+
+
+# # -------------------------------
+# # DATA PREVIEW
+# # -------------------------------
+# st.markdown("### 📌 Sample Data (First 5 Records)")
+# st.dataframe(df.head(5), use_container_width=True)
+#
+# with st.expander("📂 View Full Dataset"):
+#     st.dataframe(df, use_container_width=True)
+
+# -------------------------------
+# COLUMN DETECTION
+# -------------------------------
 num_cols = df.select_dtypes(include=np.number).columns.tolist()
 cat_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-st.markdown("""
-<div class="section-card">
-<div class="section-title">🧠 Step 2: Select Columns</div>
-<div class="section-sub">Choose numeric & categorical fields</div>
-""", unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
-with col1:
-    selected_num = st.multiselect("📈 Numeric Columns", num_cols, num_cols[:3])
-with col2:
-    selected_cat = st.multiselect("🏷️ Category Columns", cat_cols, cat_cols[:2])
 
-st.markdown("</div>", unsafe_allow_html=True)
 
-if not (selected_num or selected_cat):
-    st.warning("Select at least one column")
-    st.stop()
 
-# -------------------------------------------------
-# CHART ENGINE
-# -------------------------------------------------
-def generate_charts(df, num_cols, cat_cols):
-    charts = []
-    df_viz = df[num_cols + cat_cols]
+# -------------------------------
+# PIVOT CONFIGURATION CARD
+# -------------------------------
+st.markdown('<div class="sneat-header">🧮 Pivot Configuration</div>', unsafe_allow_html=True)
 
-    if num_cols:
-        melt_df = df_viz[num_cols].melt(var_name="Metric", value_name="Value")
-        charts.append(px.histogram(melt_df, x="Value", color="Metric",
-                                   nbins=30, opacity=0.7, title="📊 Distributions"))
+c1, c2, c3, c4 = st.columns(4)
 
-        charts.append(px.box(df_viz[num_cols], title="📦 Spread & Outliers"))
+with c1:
+    row_cols = st.multiselect("Rows (Categories)", cat_cols)
 
-        if len(num_cols) > 1:
-            charts.append(px.imshow(
-                df_viz[num_cols].corr(),
-                color_continuous_scale="RdBu_r",
-                title="🔗 Correlation Matrix"
-            ))
+with c2:
+    col_cols = st.multiselect("Columns (Series)", cat_cols)
 
-    for col in cat_cols[:3]:
-        vc = df_viz[col].value_counts().head(12)
-        charts.append(px.bar(x=vc.index, y=vc.values, title=f"📊 {col} Counts"))
-        charts.append(px.pie(values=vc.values, names=vc.index, title=f"🥧 {col} Proportions"))
+with c3:
+    val_cols = st.multiselect("Metrics (Values)", num_cols)
 
-    if num_cols:
-        charts.append(px.scatter(
-            df_viz.reset_index(),
-            x="index", y=num_cols[0],
-            title=f"📈 {num_cols[0]} Trend"
-        ))
+with c4:
+    agg_func = st.selectbox("Aggregation", ["sum", "mean", "count", "max", "min"])
 
-    return charts
-
-# -------------------------------------------------
-# GENERATE BUTTON (STICKY)
-# -------------------------------------------------
-st.markdown('<div class="generate-btn">', unsafe_allow_html=True)
-generate = st.button("🚀 Generate Charts", type="primary", use_container_width=True)
 st.markdown('</div>', unsafe_allow_html=True)
 
-# -------------------------------------------------
-# CHARTS + SUMMARY
-# -------------------------------------------------
-if generate:
+
+# -------------------------------
+# GLOBAL FILTERS CARD
+# -------------------------------
+st.markdown('<div class="sneat-header">🔍 Global Filters</div>', unsafe_allow_html=True)
+
+filter_cols = st.multiselect("Filter by", cat_cols)
+
+df_filtered = df.copy()
+
+if filter_cols:
+    filter_columns = st.columns(len(filter_cols))
+    for i, col in enumerate(filter_cols):
+        with filter_columns[i]:
+            options = df[col].dropna().unique().tolist()
+            selected = st.multiselect(f"{col}", options)
+            if selected:
+                df_filtered = df_filtered[df_filtered[col].isin(selected)]
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =========================================================
+# ================= YOUR CODE BELOW (UNCHANGED) ===========
+# =========================================================
+
+if not row_cols or not val_cols:
+    st.warning("Define 'Rows' and 'Metrics' to visualize data.")
+    st.stop()
+
+
+# 2. DATA PROCESSING
+try:
+    pivot_df = pd.pivot_table(
+        df_filtered,
+        index=row_cols,
+        columns=col_cols if col_cols else None,
+        values=val_cols,
+        aggfunc=agg_func,
+        fill_value=0
+    )
+
+    if isinstance(pivot_df.columns, pd.MultiIndex):
+        pivot_df.columns = ['_'.join(map(str, c)) for c in pivot_df.columns]
+
+    pivot_df = pivot_df.reset_index()
+
+except Exception as e:
+    st.error(f"Error building pivot: {e}")
+    st.stop()
+
+# 3. TABS FOR VISUALIZATION
+# tab_data, tab_viz = st.tabs(["📑 Data Explorer", "📊 Analytics View"])
+
+st.markdown("""
+<style>
+
+/* Make tabs look like modern pills */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 10px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 45px;
+    padding: 10px 22px;
+    background-color: #f4f6f9;
+    border-radius: 12px;
+    font-weight: 600;
+    color: #6c757d;
+    transition: all 0.3s ease;
+}
+
+/* Active tab highlight */
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #696cff, #5a5ce6);
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(105, 108, 255, 0.3);
+}
+
+/* Hover effect */
+.stTabs [data-baseweb="tab"]:hover {
+    background-color: #e4e6ff;
+    color: #696cff;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+tab_data, tab_viz = st.tabs([
+    "🗂 Data Explorer",
+    "📈 Analytics Dashboard"
+])
+
+
+with tab_viz:
+
+    chart_type = st.segmented_control(
+        "Select Visualization Type",
+        options=["Grouped Bar", "Line", "Pie", "Bar", "Stacked Bar", "Area", "Donut", "KPI Card"],
+        default="Grouped Bar"
+    )
+
+    main_x = row_cols[0]
+    plot_cols = [c for c in pivot_df.columns if c not in row_cols]
+
+    melted = pivot_df.melt(
+        id_vars=row_cols,
+        value_vars=plot_cols,
+        var_name="Metric",
+        value_name="Val"
+    )
+    # ------------------- Show KPI Card only -------------------
+    if chart_type == "KPI Card":
+        # Compute metrics
+        total_val = melted["Val"].sum()
+        avg_val = melted["Val"].mean()
+        max_val = melted["Val"].max()
+
+        # Modern KPI card HTML
+        kpi_html = f"""
+        <style>
+        .kpi-container {{
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }}
+        .kpi-card {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            flex: 1 1 200px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }}
+        .kpi-card:hover {{
+            transform: translateY(-5px);
+        }}
+        .kpi-label {{
+            font-size: 14px;
+            opacity: 0.8;
+        }}
+        .kpi-value {{
+            font-size: 28px;
+            font-weight: bold;
+            margin-top: 5px;
+        }}
+        .kpi-icon {{
+            font-size: 24px;
+            float: right;
+            opacity: 0.7;
+        }}
+        </style>
+
+        <div class="kpi-container">
+            <div class="kpi-card">
+                <div class="kpi-icon">💎</div>
+                <div class="kpi-label">Total</div>
+                <div class="kpi-value">{total_val:,.0f}</div>
+            </div>
+            <div class="kpi-card" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);">
+                <div class="kpi-icon">📊</div>
+                <div class="kpi-label">Average</div>
+                <div class="kpi-value">{avg_val:,.2f}</div>
+            </div>
+            <div class="kpi-card" style="background: linear-gradient(135deg, #fc5c7d 0%, #6a82fb 100%);">
+                <div class="kpi-icon">🚀</div>
+                <div class="kpi-label">Maximum</div>
+                <div class="kpi-value">{max_val:,.0f}</div>
+            </div>
+        </div>
+        """
+
+        st.markdown(kpi_html, unsafe_allow_html=True)
+
+    else:
+
+        st.markdown('<div class="chart-container">', unsafe_allow_html=True)
+
+        fig = None
+
+        if chart_type == "Bar":
+            simple_bar_data = melted.groupby(main_x)["Val"].sum().reset_index()
+            fig = px.bar(
+                simple_bar_data,
+                x=main_x,
+                y="Val",
+                template="plotly_white",
+                color_discrete_sequence=['#696cff']
+            )
+            fig.update_layout(showlegend=False)
+
+        elif chart_type == "Stacked Bar":
+            fig = px.bar(melted, x=main_x, y="Val", color="Metric", barmode="relative")
+
+        elif chart_type == "Grouped Bar":
+            fig = px.bar(melted, x=main_x, y="Val", color="Metric", barmode="group")
+
+        elif chart_type == "Line":
+            fig = px.line(melted, x=main_x, y="Val", color="Metric", markers=True)
+
+        elif chart_type == "Area":
+            fig = px.area(melted, x=main_x, y="Val", color="Metric")
+
+        elif chart_type in ["Pie", "Donut"]:
+            pie_data = melted.groupby(main_x)["Val"].sum().reset_index()
+            is_donut = 0.4 if chart_type == "Donut" else 0
+            fig = px.pie(pie_data, names=main_x, values="Val", hole=is_donut)
+
+        if fig:
+            fig.update_layout(margin=dict(t=20, b=20, l=20, r=20))
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+with tab_data:
+    # ✅ CLEAN COLUMN NAMES
+    if isinstance(pivot_df.columns, pd.MultiIndex):
+        pivot_df.columns = [
+            col[1] if col[1] else col[0]
+            for col in pivot_df.columns
+        ]
+    else:
+        pivot_df.columns = [
+            col.split("_")[-1] if "_" in str(col) else col
+            for col in pivot_df.columns
+        ]
+
+    pivot_display = pivot_df.copy()
+    pivot_display.insert(0, "S.No", range(1, len(pivot_display) + 1))
+
+    # Fetch numeric columns, but EXCLUDE 'S.No'
+    numeric_cols = pivot_display.select_dtypes(include=np.number).columns.tolist()
+    if "S.No" in numeric_cols:
+        numeric_cols.remove("S.No")
+
+    grand_total = pivot_display[numeric_cols].sum().to_dict()
+    grand_total["S.No"] = ""
+
+    for col in pivot_display.columns:
+        if col not in grand_total:
+            grand_total[col] = "Grand Total"
+
+    pivot_display = pd.concat(
+        [pivot_display, pd.DataFrame([grand_total])],
+        ignore_index=True
+    )
+
+    # -------------------------------
+    # GRAND TOTAL COLUMN
+    # -------------------------------
+    # 'S.No' is safely ignored here now
+    pivot_display["Grand Total"] = pivot_display[numeric_cols].sum(axis=1)
+
+    table_html = pivot_display.to_html(index=False, classes="premium-table", border=0)
+
     st.markdown("""
-    <div class="section-card">
-    <div class="section-title">📊 Visual Analytics</div>
-    <div class="section-sub">Interactive insights generated automatically</div>
+    <style>
+    .table-card {
+        background: #ffffff;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(67, 89, 113, 0.1);
+        border: 1px solid #d9dee3;
+        overflow-x: auto;
+    }
+
+    .premium-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+    }
+
+    .premium-table thead {
+        background-color: #f0f1ff;
+        color: #696cff;
+        border-bottom: 2px solid #dcdfff;
+    }
+
+    .premium-table th {
+        padding: 12px 15px;
+        text-transform: uppercase;
+        font-size: 12px;
+    }
+
+    .premium-table td {
+        padding: 10px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        color: #566a7f;
+    }
+
+    .premium-table tbody tr:hover {
+        background-color: #f5f5f9;
+    }
+
+    .premium-table tbody tr:last-child {
+        font-weight: 700;
+        background-color: #f8f9ff;
+    }
+    </style>
     """, unsafe_allow_html=True)
 
-    charts = generate_charts(df, selected_num, selected_cat)
-
-    for fig in charts:
-        fig.update_layout(height=360, margin=dict(t=60, b=30))
-        st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # SUMMARY
-    st.markdown("""
-    <div class="section-card">
-    <div class="section-title">📈 Executive Summary</div>
+    st.markdown(f"""
+    <div class="table-card">
+        {table_html}
+    </div>
     """, unsafe_allow_html=True)
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Rows", f"{len(df):,}")
-    c2.metric("Columns", len(selected_num) + len(selected_cat))
-    c3.metric("Numeric", len(selected_num))
-    c4.metric("Category", len(selected_cat))
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # EXPORT
-    st.markdown("""
-    <div class="section-card">
-    <div class="section-title">💾 Export Data</div>
-    """, unsafe_allow_html=True)
-
-    csv = df[selected_num + selected_cat].to_csv(index=False).encode()
-    st.download_button("📥 Download CSV", csv, "chart_data.csv")
-
-    excel_buffer = BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-        df[selected_num + selected_cat].to_excel(writer, index=False)
-
-    st.download_button("📊 Download Excel", excel_buffer.getvalue(), "chart_data.xlsx")
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# -------------------------------------------------
-# DATA PREVIEW
-# -------------------------------------------------
-with st.expander("👀 Preview Data (Top 100 rows)"):
-    st.dataframe(df[selected_num + selected_cat].head(100), use_container_width=True)
