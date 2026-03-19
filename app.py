@@ -5,6 +5,8 @@ import numpy as np
 import warnings
 import requests
 from io import BytesIO
+import configparser
+import os
 
 warnings.filterwarnings("ignore")
 
@@ -50,7 +52,13 @@ span[data-baseweb="tag"] {
 </style>
 """, unsafe_allow_html=True)
 
-DJANGO_APP_URL = "http://localhost:8312/"
+# DJANGO_APP_URL = "http://localhost:8312/"
+# DJANGO_APP_URL = "https://allydax.com/"
+
+config = configparser.ConfigParser()
+config.read(os.path.join(os.getcwd(), 'custom_config.ini'))
+# Create your views here.
+DJANGO_APP_URL = config['DEFAULT']['DJANGO_APP_URL']
 
 # -------------------------------
 # FETCH DATA (CACHED)
@@ -82,7 +90,7 @@ def fetch_excel_data(record_id):
 # -------------------------------
 # GET QUERY PARAM
 # -------------------------------
-record_id = st.query_params.get("id")
+record_id = st.query_params.get("record_id")
 print(record_id)
 
 # st.write("Received ID:", record_id)
@@ -306,7 +314,9 @@ if st.button("📊 Show Chart"):
     #
     # redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
     # st.markdown(f"[Click here to go]({redirect_url})", unsafe_allow_html=True)
-    redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
+    # redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
+    redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
+    st.info(redirect_url)
 
     # Use HTML meta refresh for same-page redirect
     st.markdown(f"""
@@ -315,3 +325,18 @@ if st.button("📊 Show Chart"):
         """, unsafe_allow_html=True)
 
     st.stop()
+
+
+
+# if st.button("📊 Show Chart"):
+#     redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
+#
+#     st.info(f"Redirecting to: {redirect_url}")
+#
+#     st.markdown(f"""
+#     <script>
+#         window.location.href = "{redirect_url}";
+#     </script>
+#     """, unsafe_allow_html=True)
+#
+#     st.stop()
