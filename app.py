@@ -7,6 +7,8 @@ import requests
 from io import BytesIO
 import configparser
 import os
+import json
+import time
 
 warnings.filterwarnings("ignore")
 
@@ -168,6 +170,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 # ================= YOUR CODE BELOW (UNCHANGED) ===========
 # =========================================================
 
+
 if not row_cols or not val_cols:
     st.warning("Define 'Rows' and 'Metrics' to visualize data.")
     st.stop()
@@ -192,6 +195,108 @@ try:
 except Exception as e:
     st.error(f"Error building pivot: {e}")
     st.stop()
+
+# if st.button("📊 Show Chart"):
+#     # -------------------------------
+#     # Build pivot config including filters
+#     # -------------------------------
+#     pivot_config = {
+#         "rows": row_cols,  # selected row fields
+#         "columns": col_cols if col_cols else [],  # selected column fields
+#         "values": val_cols,  # selected value fields
+#         "aggfunc": agg_func,  # aggregation function
+#         "fill_value": 0,  # missing cells replacement
+#         "filters": {}  # global filters applied
+#     }
+#
+#     # Add selected filter values
+#     for col in filter_cols:
+#         selected = df_filtered[col].unique().tolist()  # current filtered values
+#         pivot_config["filters"][col] = selected
+#
+#
+#     # -------------------------------
+#     # Send pivot config to Django API
+#     # -------------------------------
+#     url = f"{DJANGO_APP_URL}update_pivot_config/{record_id}/"
+#     headers = {'Content-Type': 'application/json'}
+#     payload = json.dumps({"pivot_config": pivot_config})  # send actual config!
+#
+#     try:
+#         response = requests.put(url, headers=headers, data=payload)
+#         if response.status_code == 200:
+#             st.success("Pivot config + filters saved successfully!")
+#         else:
+#             st.error(f"Failed to save pivot config: {response.status_code} - {response.text}")
+#     except Exception as e:
+#         st.error(f"Error sending pivot config: {e}")
+#
+#     redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
+#     st.info(redirect_url)
+#
+#     # -------------------------------
+#     # Redirect to chart view
+#     # -------------------------------
+#
+#     st.markdown(f"""
+#             <meta http-equiv="refresh" content="0; url={redirect_url}">
+#             <p>Redirecting... If you are not redirected automatically, <a href="{redirect_url}">click here</a>.</p>
+#         """, unsafe_allow_html=True)
+#
+#     st.stop()
+
+if st.button("📊 Show Chart"):
+    # Create placeholder for status messages
+    status_placeholder = st.empty()
+    link_placeholder = st.empty()
+
+    # Show loading message
+    status_placeholder.info("⏳ Processing pivot config...")
+
+    # -------------------------------
+    # Build pivot config including filters
+    # -------------------------------
+    pivot_config = {
+        "rows": row_cols,  # selected row fields
+        "columns": col_cols if col_cols else [],  # selected column fields
+        "values": val_cols,  # selected value fields
+        "aggfunc": agg_func,  # aggregation function
+        "fill_value": 0,  # missing cells replacement
+        "filters": {}  # global filters applied
+    }
+
+    # Add selected filter values
+    for col in filter_cols:
+        selected = df_filtered[col].unique().tolist()
+        pivot_config["filters"][col] = selected
+
+    # -------------------------------
+    # Send pivot config to Django API
+    # -------------------------------
+    url = f"{DJANGO_APP_URL}update_pivot_config/{record_id}/"
+    headers = {'Content-Type': 'application/json'}
+    payload = json.dumps({"pivot_config": pivot_config})
+
+    success = False
+    try:
+        response = requests.put(url, headers=headers, data=payload)
+        if response.status_code == 200:
+            success = True
+        else:
+            status_placeholder.error(f"❌ Failed to save pivot config: {response.status_code}")
+    except Exception as e:
+        status_placeholder.error(f"❌ Error: {e}")
+
+    # If API call was successful, show clickable link
+    if success:
+        redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
+
+        # Show clickable link to open in new tab
+        link_placeholder.markdown(f"""
+            <a href="{redirect_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 10px; cursor: pointer;">
+                📊 Open Chart in New Tab
+            </a>
+        """, unsafe_allow_html=True)
 
 # ✅ CLEAN COLUMN NAMES
 if isinstance(pivot_df.columns, pd.MultiIndex):
@@ -309,34 +414,4 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-if st.button("📊 Show Chart"):
-    # st.info("Redirecting to Django / Streamlit page...")
-    #
-    # redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
-    # st.markdown(f"[Click here to go]({redirect_url})", unsafe_allow_html=True)
-    # redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
-    redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
-    st.info(redirect_url)
 
-    # Use HTML meta refresh for same-page redirect
-    st.markdown(f"""
-            <meta http-equiv="refresh" content="0; url={redirect_url}">
-            <p>Redirecting... If you are not redirected automatically, <a href="{redirect_url}">click here</a>.</p>
-        """, unsafe_allow_html=True)
-
-    st.stop()
-
-
-
-# if st.button("📊 Show Chart"):
-#     redirect_url = f"{DJANGO_APP_URL}streamlit_to_django/{record_id}/"
-#
-#     st.info(f"Redirecting to: {redirect_url}")
-#
-#     st.markdown(f"""
-#     <script>
-#         window.location.href = "{redirect_url}";
-#     </script>
-#     """, unsafe_allow_html=True)
-#
-#     st.stop()
