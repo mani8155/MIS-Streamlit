@@ -250,9 +250,6 @@ if st.button("📊 Show Chart"):
     status_placeholder = st.empty()
     link_placeholder = st.empty()
 
-    # Show loading message
-    status_placeholder.info("⏳ Processing pivot config...")
-
     # -------------------------------
     # Build pivot config including filters
     # -------------------------------
