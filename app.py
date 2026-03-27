@@ -171,16 +171,29 @@ st.markdown('</div>', unsafe_allow_html=True)
 # =========================================================
 
 
-if not row_cols or not val_cols:
-    st.warning("Define 'Rows' and 'Metrics' to visualize data.")
+# if not row_cols or not val_cols:
+#     st.warning("Define 'Rows' and 'Metrics' to visualize data.")
+#     st.stop()
+
+if not val_cols:
+    st.warning("Define 'Metrics' to visualize data.")
     st.stop()
 
 
 # 2. DATA PROCESSING
 try:
+    # pivot_df = pd.pivot_table(
+    #     df_filtered,
+    #     index=row_cols,
+    #     columns=col_cols if col_cols else None,
+    #     values=val_cols,
+    #     aggfunc=agg_func,
+    #     fill_value=0
+    # )
+
     pivot_df = pd.pivot_table(
         df_filtered,
-        index=row_cols,
+        index=row_cols if row_cols else None,
         columns=col_cols if col_cols else None,
         values=val_cols,
         aggfunc=agg_func,
@@ -190,60 +203,18 @@ try:
     if isinstance(pivot_df.columns, pd.MultiIndex):
         pivot_df.columns = ['_'.join(map(str, c)) for c in pivot_df.columns]
 
+    # pivot_df = pivot_df.reset_index()
+
     pivot_df = pivot_df.reset_index()
+
+    # ✅ Handle case when no rows selected
+    if not row_cols:
+        pivot_df = pivot_df.reset_index(drop=True)
 
 except Exception as e:
     st.error(f"Error building pivot: {e}")
     st.stop()
 
-# if st.button("📊 Show Chart"):
-#     # -------------------------------
-#     # Build pivot config including filters
-#     # -------------------------------
-#     pivot_config = {
-#         "rows": row_cols,  # selected row fields
-#         "columns": col_cols if col_cols else [],  # selected column fields
-#         "values": val_cols,  # selected value fields
-#         "aggfunc": agg_func,  # aggregation function
-#         "fill_value": 0,  # missing cells replacement
-#         "filters": {}  # global filters applied
-#     }
-#
-#     # Add selected filter values
-#     for col in filter_cols:
-#         selected = df_filtered[col].unique().tolist()  # current filtered values
-#         pivot_config["filters"][col] = selected
-#
-#
-#     # -------------------------------
-#     # Send pivot config to Django API
-#     # -------------------------------
-#     url = f"{DJANGO_APP_URL}update_pivot_config/{record_id}/"
-#     headers = {'Content-Type': 'application/json'}
-#     payload = json.dumps({"pivot_config": pivot_config})  # send actual config!
-#
-#     try:
-#         response = requests.put(url, headers=headers, data=payload)
-#         if response.status_code == 200:
-#             st.success("Pivot config + filters saved successfully!")
-#         else:
-#             st.error(f"Failed to save pivot config: {response.status_code} - {response.text}")
-#     except Exception as e:
-#         st.error(f"Error sending pivot config: {e}")
-#
-#     redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
-#     st.info(redirect_url)
-#
-#     # -------------------------------
-#     # Redirect to chart view
-#     # -------------------------------
-#
-#     st.markdown(f"""
-#             <meta http-equiv="refresh" content="0; url={redirect_url}">
-#             <p>Redirecting... If you are not redirected automatically, <a href="{redirect_url}">click here</a>.</p>
-#         """, unsafe_allow_html=True)
-#
-#     st.stop()
 
 if st.button("📊 Show Chart"):
     # Create placeholder for status messages
