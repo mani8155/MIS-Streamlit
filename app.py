@@ -48,29 +48,24 @@ span[data-baseweb="tag"] {
     font-weight: 700;
     margin-bottom: 15px;
 }
-
-
-
 </style>
 """, unsafe_allow_html=True)
 
-# DJANGO_APP_URL = "http://localhost:8312/"
-# DJANGO_APP_URL = "https://allydax.com/"
-
+# -------------------------------
+# CONFIG
+# -------------------------------
 config = configparser.ConfigParser()
 config.read(os.path.join(os.getcwd(), 'custom_config.ini'))
-# Create your views here.
 DJANGO_APP_URL = config['DEFAULT']['DJANGO_APP_URL']
 
 # -------------------------------
-# FETCH DATA (CACHED)
+# FETCH DATA
 # -------------------------------
 @st.cache_data(show_spinner=False)
 def fetch_excel_data(record_id):
     try:
         url = f"{DJANGO_APP_URL}download_excel_api/{record_id}/"
         response = requests.get(url, timeout=10)
-
 
         if response.status_code != 200:
             return None, "API Error"
@@ -88,15 +83,10 @@ def fetch_excel_data(record_id):
     except Exception as e:
         return None, str(e)
 
-
 # -------------------------------
 # GET QUERY PARAM
 # -------------------------------
 record_id = st.query_params.get("record_id")
-print(record_id)
-
-# st.write("Received ID:", record_id)
-# st.write("Received ID:", record_id)
 
 if not record_id:
     st.warning("❗ No ID provided in URL")
@@ -118,35 +108,160 @@ if error:
 num_cols = df.select_dtypes(include=np.number).columns.tolist()
 cat_cols = df.select_dtypes(exclude=np.number).columns.tolist()
 
-
-
+#
+# # -------------------------------
+# # PIVOT CONFIGURATION
+# # -------------------------------
+# st.markdown('<div class="sneat-header">🧮 Pivot Configuration</div>', unsafe_allow_html=True)
+#
+# c1, c2, c3 = st.columns([1.2, 1.2, 2])
+#
+# # -------------------------------
+# # ROWS
+# # -------------------------------
+# with c1:
+#     st.markdown("**📌 Rows**")
+#     row_cols = st.multiselect("Select Rows", cat_cols)
+#
+# # -------------------------------
+# # COLUMNS
+# # -------------------------------
+# with c2:
+#     st.markdown("**📊 Columns**")
+#     col_cols = st.multiselect("Select Columns", cat_cols)
+#
+# # -------------------------------
+# # METRICS (NEW UI)
+# # -------------------------------
+# with c3:
+#     st.markdown("**📈 Metrics (Values & Aggregation)**")
+#
+#     value_config = []
+#
+#     metric_count = st.number_input(
+#         "No. of Metrics",
+#         min_value=1,
+#         max_value=10,
+#         value=1,
+#         step=1
+#     )
+#
+#     st.markdown("<hr>", unsafe_allow_html=True)
+#
+#     for i in range(metric_count):
+#         m1, m2 = st.columns([2, 1])
+#
+#         with m1:
+#             selected_col = st.selectbox(
+#                 f"Metric {i+1}",
+#                 num_cols,
+#                 key=f"val_col_{i}"
+#             )
+#
+#         with m2:
+#             selected_agg = st.selectbox(
+#                 "Agg",
+#                 ["sum", "mean", "count", "max", "min"],
+#                 key=f"val_agg_{i}"
+#             )
+#
+#         value_config.append((selected_col, selected_agg))
+#
+# # -------------------------------
+# # KEEP LAYOUT BALANCED
+# # -------------------------------
+# st.markdown('</div>', unsafe_allow_html=True)
 
 
 # -------------------------------
-# PIVOT CONFIGURATION CARD
+# PIVOT CONFIGURATION
 # -------------------------------
 st.markdown('<div class="sneat-header">🧮 Pivot Configuration</div>', unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3 = st.columns([1.2, 1.2, 2])
 
-with c1:
-    row_cols = st.multiselect("Rows (Categories)", cat_cols)
-
-with c2:
-    col_cols = st.multiselect("Columns (Series)", cat_cols)
-
-with c3:
-    val_cols = st.multiselect("Metrics (Values)", num_cols)
-
-with c4:
-    agg_func = st.selectbox("Aggregation", ["sum", "mean", "count", "max", "min"])
-
-
-st.markdown('</div>', unsafe_allow_html=True)
 
 
 # -------------------------------
-# GLOBAL FILTERS CARD
+# COLUMNS
+# -------------------------------
+with c1:
+    st.markdown("**📊 Columns**")
+    col_cols = st.multiselect("Select Columns", cat_cols)
+
+# -------------------------------
+# ROWS
+# -------------------------------
+with c2:
+    st.markdown("**📌 Rows**")
+    row_cols = st.multiselect("Select Rows", cat_cols)
+
+# -------------------------------
+# METRICS (SAFE UI)
+# -------------------------------
+with c3:
+    st.markdown("**📈 Metrics (Values & Aggregation)**")
+
+    value_config = []
+
+    metric_count = st.number_input(
+        "No. of Metrics",
+        min_value=1,
+        max_value=10,
+        value=1,
+        step=1
+    )
+
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    used_combinations = set()
+
+    for i in range(metric_count):
+        m1, m2 = st.columns([2, 1])
+
+        with m1:
+            selected_col = st.selectbox(
+                f"Metric {i+1}",
+                ["-- Select Column --"] + num_cols,
+                key=f"val_col_{i}"
+            )
+
+        with m2:
+            selected_agg = st.selectbox(
+                "Agg",
+                ["-- Select --", "sum", "mean", "count", "max", "min"],
+                key=f"val_agg_{i}"
+            )
+
+        # -------------------------------
+        # VALIDATION
+        # -------------------------------
+        if selected_col != "-- Select Column --" and selected_agg != "-- Select --":
+
+            combo = (selected_col, selected_agg)
+
+            if combo in used_combinations:
+                st.warning(f"⚠️ Duplicate metric: {selected_col} ({selected_agg})")
+            else:
+                used_combinations.add(combo)
+                value_config.append(combo)
+
+
+
+# -------------------------------
+# FINAL VALIDATION BEFORE PIVOT
+# -------------------------------
+if len(value_config) == 0:
+    st.info("❌ Please configure at least one valid metric")
+
+elif not row_cols and not col_cols:
+    st.info("❌ Select at least Rows or Columns")
+
+
+
+
+# -------------------------------
+# GLOBAL FILTERS
 # -------------------------------
 st.markdown('<div class="sneat-header">🔍 Global Filters</div>', unsafe_allow_html=True)
 
@@ -165,49 +280,35 @@ if filter_cols:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-
-# =========================================================
-# ================= YOUR CODE BELOW (UNCHANGED) ===========
-# =========================================================
-
-
-# if not row_cols or not val_cols:
-#     st.warning("Define 'Rows' and 'Metrics' to visualize data.")
-#     st.stop()
-
-if not val_cols:
+# -------------------------------
+# VALIDATION
+# -------------------------------
+if not value_config:
     st.warning("Define 'Metrics' to visualize data.")
     st.stop()
 
-
-# 2. DATA PROCESSING
+# -------------------------------
+# PIVOT
+# -------------------------------
 try:
-    # pivot_df = pd.pivot_table(
-    #     df_filtered,
-    #     index=row_cols,
-    #     columns=col_cols if col_cols else None,
-    #     values=val_cols,
-    #     aggfunc=agg_func,
-    #     fill_value=0
-    # )
+    agg_dict = {}
+    for col, agg in value_config:
+        agg_dict.setdefault(col, []).append(agg)
 
     pivot_df = pd.pivot_table(
         df_filtered,
         index=row_cols if row_cols else None,
         columns=col_cols if col_cols else None,
-        values=val_cols,
-        aggfunc=agg_func,
+        values=list(agg_dict.keys()),
+        aggfunc=agg_dict,
         fill_value=0
     )
 
     if isinstance(pivot_df.columns, pd.MultiIndex):
-        pivot_df.columns = ['_'.join(map(str, c)) for c in pivot_df.columns]
-
-    # pivot_df = pivot_df.reset_index()
+        pivot_df.columns = [f"{c[0]}_{c[1]}" for c in pivot_df.columns]
 
     pivot_df = pivot_df.reset_index()
 
-    # ✅ Handle case when no rows selected
     if not row_cols:
         pivot_df = pivot_df.reset_index(drop=True)
 
@@ -215,73 +316,80 @@ except Exception as e:
     st.error(f"Error building pivot: {e}")
     st.stop()
 
-
+# -------------------------------
+# SAVE CONFIG + LINK
+# -------------------------------
 if st.button("📊 Show Chart"):
-    # Create placeholder for status messages
-    status_placeholder = st.empty()
     link_placeholder = st.empty()
-
-    # -------------------------------
-    # Build pivot config including filters
-    # -------------------------------
     pivot_config = {
-        "rows": row_cols,  # selected row fields
-        "columns": col_cols if col_cols else [],  # selected column fields
-        "values": val_cols,  # selected value fields
-        "aggfunc": agg_func,  # aggregation function
-        "fill_value": 0,  # missing cells replacement
-        "filters": {}  # global filters applied
+        "rows": row_cols,
+        "columns": col_cols if col_cols else [],
+        "values": [
+            {"column": col, "aggregation": agg}
+            for col, agg in value_config
+        ],
+        "fill_value": 0,
+        "filters": {}
     }
 
-    # Add selected filter values
     for col in filter_cols:
-        selected = df_filtered[col].unique().tolist()
-        pivot_config["filters"][col] = selected
+        pivot_config["filters"][col] = df_filtered[col].unique().tolist()
 
-    # -------------------------------
-    # Send pivot config to Django API
-    # -------------------------------
     url = f"{DJANGO_APP_URL}update_pivot_config/{record_id}/"
     headers = {'Content-Type': 'application/json'}
-    payload = json.dumps({"pivot_config": pivot_config})
 
-    success = False
     try:
-        response = requests.put(url, headers=headers, data=payload)
+        response = requests.put(url, headers=headers, data=json.dumps({"pivot_config": pivot_config}))
+
         if response.status_code == 200:
-            success = True
+
+
+            redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
+
+            # Show clickable link to open in new tab
+            link_placeholder.markdown(f"""
+                <a href="{redirect_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 10px; cursor: pointer;">
+                    📊 Open Chart in New Tab
+                </a>
+            """, unsafe_allow_html=True)
+
+            # redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
+            # st.markdown(f'<a href="{redirect_url}" target="_blank">📊 Open Chart</a>', unsafe_allow_html=True)
         else:
-            status_placeholder.error(f"❌ Failed to save pivot config: {response.status_code}")
+            st.error("Failed to save config")
+
     except Exception as e:
-        status_placeholder.error(f"❌ Error: {e}")
+        st.error(str(e))
 
-    # If API call was successful, show clickable link
-    if success:
-        redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
-
-        # Show clickable link to open in new tab
-        link_placeholder.markdown(f"""
-            <a href="{redirect_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 10px; cursor: pointer;">
-                📊 Open Chart in New Tab
-            </a>
-        """, unsafe_allow_html=True)
-
-# ✅ CLEAN COLUMN NAMES
-if isinstance(pivot_df.columns, pd.MultiIndex):
-    pivot_df.columns = [
-        col[1] if col[1] else col[0]
-        for col in pivot_df.columns
-    ]
-else:
-    pivot_df.columns = [
-        col.split("_")[-1] if "_" in str(col) else col
-        for col in pivot_df.columns
-    ]
+# -------------------------------
+# DISPLAY TABLE (UNCHANGED)
+# -------------------------------
+# pivot_display = pivot_df.copy()
+# pivot_display.insert(0, "S.No", range(1, len(pivot_display) + 1))
+#
+# numeric_cols = pivot_display.select_dtypes(include=np.number).columns.tolist()
+# if "S.No" in numeric_cols:
+#     numeric_cols.remove("S.No")
+#
+# grand_total = pivot_display[numeric_cols].sum().to_dict()
+# grand_total["S.No"] = ""
+#
+# for col in pivot_display.columns:
+#     if col not in grand_total:
+#         grand_total[col] = "Grand Total"
+#
+# pivot_display = pd.concat(
+#     [pivot_display, pd.DataFrame([grand_total])],
+#     ignore_index=True
+# )
+#
+# pivot_display["Grand Total"] = pivot_display[numeric_cols].sum(axis=1)
+#
+# table_html = pivot_display.to_html(index=False, classes="premium-table", border=0)
 
 pivot_display = pivot_df.copy()
 pivot_display.insert(0, "S.No", range(1, len(pivot_display) + 1))
 
-# Fetch numeric columns, but EXCLUDE 'S.No'
 numeric_cols = pivot_display.select_dtypes(include=np.number).columns.tolist()
 if "S.No" in numeric_cols:
     numeric_cols.remove("S.No")
@@ -298,11 +406,7 @@ pivot_display = pd.concat(
     ignore_index=True
 )
 
-# -------------------------------
-# GRAND TOTAL COLUMN
-# -------------------------------
-# 'S.No' is safely ignored here now
-pivot_display["Grand Total"] = pivot_display[numeric_cols].sum(axis=1)
+# ❌ Removed column total calculation
 
 table_html = pivot_display.to_html(index=False, classes="premium-table", border=0)
 
@@ -316,7 +420,6 @@ st.markdown("""
     border: 1px solid #d9dee3;
 }
 
-/* Scroll container like Sneat */
 .table-responsive {
     width: 100%;
     max-height: 450px;
@@ -324,7 +427,6 @@ st.markdown("""
     overflow-x: auto;
 }
 
-/* Custom scrollbar (Sneat feel) */
 .table-responsive::-webkit-scrollbar {
     height: 8px;
     width: 8px;
@@ -333,16 +435,12 @@ st.markdown("""
     background: #d4d8dd;
     border-radius: 10px;
 }
-.table-responsive::-webkit-scrollbar-thumb:hover {
-    background: #bfc5cc;
-}
 
-/* Table styling */
 .premium-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
-    min-width: 900px; /* force horizontal scroll */
+    min-width: 900px;
 }
 
 .premium-table thead th {
@@ -366,7 +464,6 @@ st.markdown("""
     background: #f9f9ff;
 }
 
-/* Optional: last row highlight */
 .premium-table tbody tr:last-child {
     font-weight: 600;
     background: #f8f9ff;
@@ -381,5 +478,3 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
-
-
