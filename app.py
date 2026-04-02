@@ -290,37 +290,78 @@ if not value_config:
 # -------------------------------
 # PIVOT
 # -------------------------------
+# -------------------------------
+# SAFE PIVOT (ALL OPTIONAL)
+# -------------------------------
+pivot_df = pd.DataFrame()
+
 try:
-    agg_dict = {}
-    for col, agg in value_config:
-        agg_dict.setdefault(col, []).append(agg)
+    # -------------------------------
+    # CASE 1: NOTHING SELECTED → SHOW RAW DATA
+    # -------------------------------
+    if not row_cols and not col_cols and not value_config:
+        pivot_df = df_filtered.copy()
 
-    pivot_df = pd.pivot_table(
-        df_filtered,
-        index=row_cols if row_cols else None,
-        columns=col_cols if col_cols else None,
-        values=list(agg_dict.keys()),
-        aggfunc=agg_dict,
-        fill_value=0
-    )
+    # -------------------------------
+    # CASE 2: ONLY ROWS / COLUMNS (NO METRICS)
+    # → COUNT MODE (Excel default behavior)
+    # -------------------------------
+    elif (row_cols or col_cols) and not value_config:
+        pivot_df = pd.pivot_table(
+            df_filtered,
+            index=row_cols if row_cols else None,
+            columns=col_cols if col_cols else None,
+            aggfunc="size",   # 🔥 COUNT
+            fill_value=0
+        ).reset_index()
 
-    if isinstance(pivot_df.columns, pd.MultiIndex):
-        pivot_df.columns = [f"{c[0]}_{c[1]}" for c in pivot_df.columns]
+    # -------------------------------
+    # CASE 3: METRICS PRESENT
+    # -------------------------------
+    else:
+        agg_dict = {}
+        for col, agg in value_config:
+            agg_dict.setdefault(col, []).append(agg)
 
-    pivot_df = pivot_df.reset_index()
+        pivot_df = pd.pivot_table(
+            df_filtered,
+            index=row_cols if row_cols else None,
+            columns=col_cols if col_cols else None,
+            values=list(agg_dict.keys()) if agg_dict else None,
+            aggfunc=agg_dict if agg_dict else "size",
+            fill_value=0
+        )
 
-    if not row_cols:
-        pivot_df = pivot_df.reset_index(drop=True)
+        # -------------------------------
+        # FIX MULTI-INDEX COLUMN ERROR
+        # -------------------------------
+        if isinstance(pivot_df.columns, pd.MultiIndex):
+            pivot_df.columns = [
+                " | ".join([str(i) for i in col if i])
+                for col in pivot_df.columns.values
+            ]
+
+        pivot_df = pivot_df.reset_index()
 
 except Exception as e:
-    st.error(f"Error building pivot: {e}")
-    st.stop()
+    st.warning("⚠️ Pivot failed, showing raw data instead")
+    pivot_df = df_filtered.copy()
 
 # -------------------------------
-# SAVE CONFIG + LINK
+# ✅ FIX: Arrow compatibility
+# -------------------------------
+for col in pivot_df.columns:
+    pivot_df[col] = pivot_df[col].apply(
+        lambda x: str(x) if isinstance(x, (list, dict)) else x
+    )
+
+
+# -------------------------------
+# ✅ SAVE CONFIG + LINK
 # -------------------------------
 if st.button("📊 Show Chart"):
     link_placeholder = st.empty()
+
     pivot_config = {
         "rows": row_cols,
         "columns": col_cols if col_cols else [],
@@ -333,60 +374,44 @@ if st.button("📊 Show Chart"):
     }
 
     for col in filter_cols:
-        pivot_config["filters"][col] = df_filtered[col].unique().tolist()
+        pivot_config["filters"][col] = df_filtered[col].dropna().unique().tolist()
 
     url = f"{DJANGO_APP_URL}update_pivot_config/{record_id}/"
     headers = {'Content-Type': 'application/json'}
 
     try:
-        response = requests.put(url, headers=headers, data=json.dumps({"pivot_config": pivot_config}))
+        response = requests.put(
+            url,
+            headers=headers,
+            data=json.dumps({"pivot_config": pivot_config})
+        )
 
         if response.status_code == 200:
-
-
             redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
 
-            # Show clickable link to open in new tab
             link_placeholder.markdown(f"""
-                <a href="{redirect_url}" target="_blank" style="display: inline-block; padding: 12px 24px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin-top: 10px; cursor: pointer;">
+                <a href="{redirect_url}" target="_blank"
+                   style="display: inline-block;
+                          padding: 12px 24px;
+                          background-color: #4CAF50;
+                          color: white;
+                          text-decoration: none;
+                          border-radius: 4px;
+                          font-weight: bold;
+                          margin-top: 10px;">
                     📊 Open Chart in New Tab
                 </a>
             """, unsafe_allow_html=True)
-
-            # redirect_url = f"{DJANGO_APP_URL}excel-upload/chart_view/{record_id}/"
-            # st.markdown(f'<a href="{redirect_url}" target="_blank">📊 Open Chart</a>', unsafe_allow_html=True)
         else:
-            st.error("Failed to save config")
+            st.error("❌ Failed to save config")
 
     except Exception as e:
-        st.error(str(e))
+        st.error(f"❌ {str(e)}")
+
 
 # -------------------------------
-# DISPLAY TABLE (UNCHANGED)
+# DISPLAY TABLE (FINAL)
 # -------------------------------
-# pivot_display = pivot_df.copy()
-# pivot_display.insert(0, "S.No", range(1, len(pivot_display) + 1))
-#
-# numeric_cols = pivot_display.select_dtypes(include=np.number).columns.tolist()
-# if "S.No" in numeric_cols:
-#     numeric_cols.remove("S.No")
-#
-# grand_total = pivot_display[numeric_cols].sum().to_dict()
-# grand_total["S.No"] = ""
-#
-# for col in pivot_display.columns:
-#     if col not in grand_total:
-#         grand_total[col] = "Grand Total"
-#
-# pivot_display = pd.concat(
-#     [pivot_display, pd.DataFrame([grand_total])],
-#     ignore_index=True
-# )
-#
-# pivot_display["Grand Total"] = pivot_display[numeric_cols].sum(axis=1)
-#
-# table_html = pivot_display.to_html(index=False, classes="premium-table", border=0)
-
 pivot_display = pivot_df.copy()
 pivot_display.insert(0, "S.No", range(1, len(pivot_display) + 1))
 
@@ -394,6 +419,9 @@ numeric_cols = pivot_display.select_dtypes(include=np.number).columns.tolist()
 if "S.No" in numeric_cols:
     numeric_cols.remove("S.No")
 
+# -------------------------------
+# GRAND TOTAL ROW
+# -------------------------------
 grand_total = pivot_display[numeric_cols].sum().to_dict()
 grand_total["S.No"] = ""
 
@@ -401,14 +429,24 @@ for col in pivot_display.columns:
     if col not in grand_total:
         grand_total[col] = "Grand Total"
 
+grand_total_df = pd.DataFrame([grand_total])
+grand_total_df = grand_total_df.reindex(columns=pivot_display.columns)
+
 pivot_display = pd.concat(
-    [pivot_display, pd.DataFrame([grand_total])],
+    [pivot_display, grand_total_df],
     ignore_index=True
 )
 
-# ❌ Removed column total calculation
+# -------------------------------
+# HTML TABLE (MULTI HEADER)
+# -------------------------------
+table_html = pivot_display.to_html(
+    index=False,
+    classes="premium-table",
+    border=0
+)
 
-table_html = pivot_display.to_html(index=False, classes="premium-table", border=0)
+
 
 st.markdown("""
 <style>
