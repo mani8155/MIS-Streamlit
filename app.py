@@ -290,34 +290,11 @@ if not value_config:
 # -------------------------------
 # PIVOT
 # -------------------------------
+# PIVOT LOGIC (ENHANCED)
 # -------------------------------
-# SAFE PIVOT (ALL OPTIONAL)
-# -------------------------------
-pivot_df = pd.DataFrame()
-
 try:
-    # -------------------------------
-    # CASE 1: NOTHING SELECTED → SHOW RAW DATA
-    # -------------------------------
     if not row_cols and not col_cols and not value_config:
         pivot_df = df_filtered.copy()
-
-    # -------------------------------
-    # CASE 2: ONLY ROWS / COLUMNS (NO METRICS)
-    # → COUNT MODE (Excel default behavior)
-    # -------------------------------
-    elif (row_cols or col_cols) and not value_config:
-        pivot_df = pd.pivot_table(
-            df_filtered,
-            index=row_cols if row_cols else None,
-            columns=col_cols if col_cols else None,
-            aggfunc="size",   # 🔥 COUNT
-            fill_value=0
-        ).reset_index()
-
-    # -------------------------------
-    # CASE 3: METRICS PRESENT
-    # -------------------------------
     else:
         agg_dict = {}
         for col, agg in value_config:
@@ -327,33 +304,34 @@ try:
             df_filtered,
             index=row_cols if row_cols else None,
             columns=col_cols if col_cols else None,
-            values=list(agg_dict.keys()) if agg_dict else None,
-            aggfunc=agg_dict if agg_dict else "size",
+            values=list(agg_dict.keys()),
+            aggfunc=agg_dict,
             fill_value=0
         )
 
-        # -------------------------------
-        # FIX MULTI-INDEX COLUMN ERROR
-        # -------------------------------
+        # --- BEAUTIFY COLUMN NAMES ---
+        # Instead of "Sales | sum", we make it "Sum of Sales"
         if isinstance(pivot_df.columns, pd.MultiIndex):
-            pivot_df.columns = [
-                " | ".join([str(i) for i in col if i])
-                for col in pivot_df.columns.values
-            ]
+            new_cols = []
+            for col_tuple in pivot_df.columns.values:
+                # col_tuple looks like: ('Sales', 'sum', 'Category_A')
+                # We clean it to be: "Sum of Sales (Category_A)"
+                metric_name = col_tuple[0]
+                agg_type = col_tuple[1].title()
+                extra_dims = " | ".join([str(x) for x in col_tuple[2:] if x])
+
+                name = f"{agg_type} of {metric_name}"
+                if extra_dims:
+                    name += f" ({extra_dims})"
+                new_cols.append(name)
+            pivot_df.columns = new_cols
 
         pivot_df = pivot_df.reset_index()
 
 except Exception as e:
-    st.warning("⚠️ Pivot failed, showing raw data instead")
+    st.warning(f"⚠️ Pivot failed: {e}")
     pivot_df = df_filtered.copy()
 
-# -------------------------------
-# ✅ FIX: Arrow compatibility
-# -------------------------------
-for col in pivot_df.columns:
-    pivot_df[col] = pivot_df[col].apply(
-        lambda x: str(x) if isinstance(x, (list, dict)) else x
-    )
 
 
 # -------------------------------
@@ -410,41 +388,79 @@ if st.button("📊 Show Chart"):
 
 
 # -------------------------------
-# DISPLAY TABLE (FINAL)
+# USER-FRIENDLY DISPLAY PREP
 # -------------------------------
 pivot_display = pivot_df.copy()
+
+# 1. Add Serial Number
 pivot_display.insert(0, "S.No", range(1, len(pivot_display) + 1))
 
+# 2. Identify Numeric columns for formatting
 numeric_cols = pivot_display.select_dtypes(include=np.number).columns.tolist()
-if "S.No" in numeric_cols:
-    numeric_cols.remove("S.No")
+if "S.No" in numeric_cols: numeric_cols.remove("S.No")
+
+# 3. Create Grand Total
+if not pivot_display.empty:
+    totals = pivot_display[numeric_cols].sum()
+    total_row = {col: "" for col in pivot_display.columns}
+    total_row[pivot_display.columns[1]] = "Grand Total"  # Put label in the first data column
+    for col in numeric_cols:
+        total_row[col] = totals[col]
+
+    pivot_display = pd.concat([pivot_display, pd.DataFrame([total_row])], ignore_index=True)
+
+# 4. Final Formatting (Currency/Decimals)
+for col in numeric_cols:
+    # Format to 2 decimal places and add commas for readability
+    # pivot_display[col] = pivot_display[col].apply(lambda x: f"{x:,.2f}" if isinstance(x, (int, float)) else x)
+    pivot_display[col] = pivot_display[col].apply(
+        lambda x: f"{x:,.2f}".replace(".00", "") if isinstance(x, (int, float)) else x
+    )
 
 # -------------------------------
-# GRAND TOTAL ROW
+# ENHANCED CSS & HTML
 # -------------------------------
-grand_total = pivot_display[numeric_cols].sum().to_dict()
-grand_total["S.No"] = ""
+st.markdown("""
+<style>
+    .table-card {
+        background: white;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border: 1px solid #eee;
+    }
+    .premium-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: 'Inter', sans-serif;
+    }
+    .premium-table thead th {
+        background-color: #f8f9ff;
+        color: #566a7f;
+        font-weight: 600;
+        padding: 12px;
+        text-align: left;
+        border-bottom: 2px solid #696cff;
+        white-space: nowrap;
+    }
+    .premium-table tbody td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #f0f2f4;
+        color: #677788;
+    }
+    /* Highlight the Total Row */
+    .premium-table tbody tr:last-child {
+        background-color: #f4f5ff !important;
+        font-weight: bold;
+        color: #696cff;
+    }
+    .premium-table tbody tr:hover {
+        background-color: #fcfcff;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-for col in pivot_display.columns:
-    if col not in grand_total:
-        grand_total[col] = "Grand Total"
-
-grand_total_df = pd.DataFrame([grand_total])
-grand_total_df = grand_total_df.reindex(columns=pivot_display.columns)
-
-pivot_display = pd.concat(
-    [pivot_display, grand_total_df],
-    ignore_index=True
-)
-
-# -------------------------------
-# HTML TABLE (MULTI HEADER)
-# -------------------------------
-table_html = pivot_display.to_html(
-    index=False,
-    classes="premium-table",
-    border=0
-)
+table_html = pivot_display.to_html(index=False, classes="premium-table", border=0)
 
 
 
